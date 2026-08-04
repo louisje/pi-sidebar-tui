@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { TodoItem, SubagentEntry, SidebarContext, McpServerInfo } from "./types.ts";
+import type { TodoItem, TodoStatus, SubagentEntry, SidebarContext, McpServerInfo } from "./types.ts";
 import { renderSidebar } from "./sidebar.ts";
 import { getWorkspaceData, invalidateWorkspaceCache } from "./workspace.ts";
 import { SidebarCompositor } from "./compositor.ts";
@@ -191,6 +191,31 @@ function parseTodos(input: unknown): TodoItem[] | null {
   return result;
 }
 
+function readRpivTodos(sm: any): TodoItem[] | null {
+  try {
+    const entries: any[] = sm?.getBranch?.() ?? [];
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i];
+      if (e?.type !== "message") continue;
+      const msg = e.message;
+      if (msg?.role !== "toolResult" || msg?.toolName !== "todo") continue;
+      const details = msg?.details;
+      if (!details || !Array.isArray(details.tasks)) continue;
+      return details.tasks
+        .filter((t: any) => t?.status !== "deleted")
+        .map((t: any) => ({
+          id: String(t.id),
+          content: t.subject,
+          status: t.status as TodoStatus,
+          subAction: t.activeForm,
+        }));
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 function extractSubagentName(input: unknown): string {
   if (!input || typeof input !== "object") return "subagent";
   const obj = input as Record<string, unknown>;
@@ -246,6 +271,11 @@ export default function piSidebar(pi: ExtensionAPI) {
     // Prefer live API; fall back to last thinking_level_change entry in history
     // Session history is authoritative for resumed sessions; fall back to live API
     thinkingLevel = inferThinkingLevel(ctx.sessionManager) ?? pi.getThinkingLevel?.() ?? null;
+    // Resumed sessions won't re-fire tool_call/message_end for past todo-tool
+    // calls, so seed from branch history (rpiv-todo's "todo" tool persists its
+    // full task list snapshot in each toolResult's `details`).
+    const seededTodos = readRpivTodos(ctx.sessionManager);
+    if (seededTodos !== null) todos = seededTodos;
 
     const hasUI = (ctx as any).hasUI;
     if (!hasUI) return;
@@ -464,6 +494,12 @@ export default function piSidebar(pi: ExtensionAPI) {
         }
       }
     }
+    // rpiv-todo's "todo" tool returns a mutation delta as tool_call input, not
+    // the full list, so it can't be parsed by parseTodos() in the tool_call
+    // handler. Its full-list snapshot only lands in the session branch once
+    // the toolResult message is committed, which happens by message_end.
+    const rpivTodos = readRpivTodos(sessionManager);
+    if (rpivTodos !== null) todos = rpivTodos;
     requestRender?.();
   });
 

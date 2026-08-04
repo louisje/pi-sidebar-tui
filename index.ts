@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { KeyId } from "@earendil-works/pi-tui";
 import type { TodoItem, TodoStatus, SubagentEntry, SidebarContext, McpServerInfo } from "./types.ts";
 import { renderSidebar } from "./sidebar.ts";
 import { getWorkspaceData, invalidateWorkspaceCache } from "./workspace.ts";
@@ -560,6 +561,23 @@ export default function piSidebar(pi: ExtensionAPI) {
     requestRender?.();
   });
 
+  const applySidebarEnabled = (ctx: any) => {
+    if (!sidebarEnabled) {
+      compositorRef?.dispose();
+      compositorRef = null;
+    } else if (tuiRef && !compositorRef) {
+      const comp = new SidebarCompositor(tuiRef, () => buildSidebarContext(currentCwd), sidebarWidth);
+      comp.install();
+      compositorRef = comp;
+      requestRender?.();
+    }
+
+    (ctx as any).ui?.notify?.(
+      `Sidebar ${sidebarEnabled ? "enabled" : "disabled"}`,
+      "info"
+    );
+  };
+
   pi.registerCommand("sidebar-tui", {
     description: "Control sidebar: /sidebar-tui on | off | width <N>",
     handler: async (args, ctx) => {
@@ -592,21 +610,16 @@ export default function piSidebar(pi: ExtensionAPI) {
       }
 
       sidebarEnabled = cmd === "on";
+      applySidebarEnabled(ctx);
+    },
+  });
 
-      if (!sidebarEnabled) {
-        compositorRef?.dispose();
-        compositorRef = null;
-      } else if (tuiRef && !compositorRef) {
-        const comp = new SidebarCompositor(tuiRef, () => buildSidebarContext(currentCwd), sidebarWidth);
-        comp.install();
-        compositorRef = comp;
-        requestRender?.();
-      }
-
-      (ctx as any).ui?.notify?.(
-        `Sidebar ${sidebarEnabled ? "enabled" : "disabled"}`,
-        "info"
-      );
+  pi.registerShortcut("ctrl+shift+s" as KeyId, {
+    description: "Toggle the pi-sidebar-tui panel on/off",
+    handler: (ctx) => {
+      if (!(ctx as any).hasUI) return;
+      sidebarEnabled = !sidebarEnabled;
+      applySidebarEnabled(ctx);
     },
   });
 

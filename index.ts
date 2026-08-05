@@ -614,7 +614,7 @@ export default function piSidebar(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerShortcut("ctrl+shift+s" as KeyId, {
+  pi.registerShortcut("ctrl+shift+r" as KeyId, {
     description: "Toggle the pi-sidebar-tui panel on/off",
     handler: (ctx) => {
       if (!(ctx as any).hasUI) return;

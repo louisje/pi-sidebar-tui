@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-08-22
+
+### Changed
+
+- **No opaque sidebar background by default**: The compositor no longer paints a solid background behind the sidebar, so terminal transparency shows through. Set `PI_SIDEBAR_BG="#rrggbb"` to opt back into an opaque panel (e.g. to hide scroll flash on opaque terminals).
+
 ## [1.2.0] - 2026-07-06
 
 ### Added

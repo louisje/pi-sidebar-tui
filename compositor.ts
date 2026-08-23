@@ -3,7 +3,16 @@ import type { SidebarContext } from "./types.ts";
 import { renderSidebar } from "./sidebar.ts";
 import { dim } from "./colors.ts";
 
-const SIDEBAR_BG = "\x1b[48;2;0;0;0m"; // black — matches terminal bg, hides scroll flash
+// No background by default so terminal transparency shows through.
+// Set PI_SIDEBAR_BG="#rrggbb" to paint an opaque panel (hides scroll flash).
+const SIDEBAR_BG = (() => {
+  const hex = process.env["PI_SIDEBAR_BG"]?.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(hex ?? "")) return "";
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `\x1b[48;2;${r};${g};${b}m`;
+})();
 const BG_RESET = "\x1b[49m";
 
 function moveCursor(row: number, col: number): string {

@@ -67,6 +67,12 @@ Set custom session title:
 /session-title "My feature implementation"
 ```
 
+## Configuration
+
+| Env var | Default | Description |
+| --- | --- | --- |
+| `PI_SIDEBAR_BG` | *(unset)* | Paint the sidebar with an opaque `#rrggbb` background. Unset (default) leaves the terminal background untouched so terminal transparency shows through. Set e.g. `PI_SIDEBAR_BG="#000000"` to hide scroll flash on opaque terminals. |
+
 ## Requirements
 
 - [pi coding agent](https://github.com/earendil-works/pi) >= 0.74.0

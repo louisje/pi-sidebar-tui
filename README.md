@@ -117,6 +117,13 @@ npm install
 npm test
 ```
 
+## Publish on npm
+
+```bash
+npm login
+npm publish
+```
+
 ## License
 
 MIT

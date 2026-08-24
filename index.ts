@@ -582,7 +582,7 @@ export default function piSidebar(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerShortcut("ctrl+s", {
+  pi.registerShortcut("ctrl+i", {
     description: "Toggle sidebar on/off",
     handler: async (ctx) => {
       currentCwd = (ctx as any).cwd;

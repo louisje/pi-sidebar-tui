@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-08-24
+
+### Changed
+
+- **Sidebar toggle shortcut moved to `Ctrl+I`**: `Ctrl+2` did not reach the TUI in some terminals. Note: `ctrl+i` shares its terminal byte with Tab.
+
 ## [1.5.1] - 2026-08-24
 
 ### Changed

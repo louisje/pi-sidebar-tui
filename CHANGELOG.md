@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-08-24
+
+### Added
+
+- **Keyboard shortcut**: `Option+S` (`alt+s`) toggles the sidebar on/off, shared with the `/sidebar-tui on|off` command. Rebind via `~/.pi/agent/keybindings.json`.
+- Config file path can be overridden with the `PI_SIDEBAR_CONFIG` environment variable (defaults to `~/.pi/agent/sidebar-tui.json`).
+
 ## [1.4.0] - 2026-08-24
 
 ### Added

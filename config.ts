@@ -12,7 +12,7 @@ export const MIN_SIDEBAR_WIDTH = 10;
 export const MAX_SIDEBAR_WIDTH = 120;
 
 export function sidebarConfigPath(): string {
-  return join(getAgentDir(), "sidebar-tui.json");
+  return process.env["PI_SIDEBAR_CONFIG"] || join(getAgentDir(), "sidebar-tui.json");
 }
 
 export function loadSidebarSettings(path: string = sidebarConfigPath()): SidebarSettings {

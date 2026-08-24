@@ -207,6 +207,26 @@ export default function piSidebar(pi: ExtensionAPI) {
   let tuiRef: any = null;
   let compositorRef: SidebarCompositor | null = null;
 
+  const setSidebarEnabled = (enabled: boolean, ctx: any) => {
+    sidebarEnabled = enabled;
+    saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth });
+
+    if (!sidebarEnabled) {
+      compositorRef?.dispose();
+      compositorRef = null;
+    } else if (tuiRef && !compositorRef) {
+      const comp = new SidebarCompositor(tuiRef, () => buildSidebarContext(currentCwd), sidebarWidth);
+      comp.install();
+      compositorRef = comp;
+      requestRender?.();
+    }
+
+    (ctx as any).ui?.notify?.(
+      `Sidebar ${sidebarEnabled ? "enabled" : "disabled"}`,
+      "info"
+    );
+  };
+
   pi.on("session_start", async (_event, ctx) => {
     sessionManager = ctx.sessionManager;
     sessionTitle = ctx.sessionManager.getSessionName() ?? inferSessionTitle(ctx.sessionManager) ?? null;
@@ -558,23 +578,15 @@ export default function piSidebar(pi: ExtensionAPI) {
         return;
       }
 
-      sidebarEnabled = cmd === "on";
-      saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth });
+      setSidebarEnabled(cmd === "on", ctx);
+    },
+  });
 
-      if (!sidebarEnabled) {
-        compositorRef?.dispose();
-        compositorRef = null;
-      } else if (tuiRef && !compositorRef) {
-        const comp = new SidebarCompositor(tuiRef, () => buildSidebarContext(currentCwd), sidebarWidth);
-        comp.install();
-        compositorRef = comp;
-        requestRender?.();
-      }
-
-      (ctx as any).ui?.notify?.(
-        `Sidebar ${sidebarEnabled ? "enabled" : "disabled"}`,
-        "info"
-      );
+  pi.registerShortcut("alt+s", {
+    description: "Toggle sidebar on/off",
+    handler: async (ctx) => {
+      currentCwd = (ctx as any).cwd;
+      setSidebarEnabled(!sidebarEnabled, ctx);
     },
   });
 

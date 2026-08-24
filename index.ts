@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { loadSidebarSettings, saveSidebarSettings } from "./config.ts";
 import type { TodoItem, SubagentEntry, SidebarContext, McpServerInfo } from "./types.ts";
 import { renderSidebar } from "./sidebar.ts";
 import { getWorkspaceData, invalidateWorkspaceCache } from "./workspace.ts";
@@ -11,8 +12,9 @@ const SUBAGENT_TOOL_PATTERN = /^(task|dispatch|agent)/i;
 const TODO_TOOL_PATTERN = /todo/i;
 const WRITE_TOOLS = new Set(["write", "edit", "bash", "computer"]);
 
-let sidebarEnabled = true;
-let sidebarWidth = 40;
+const initialSettings = loadSidebarSettings();
+let sidebarEnabled = initialSettings.enabled;
+let sidebarWidth = initialSettings.width;
 let sessionManager: any = null;
 let sessionTitle: string | null = null;
 let todos: TodoItem[] = [];
@@ -538,6 +540,7 @@ export default function piSidebar(pi: ExtensionAPI) {
           return;
         }
         sidebarWidth = n;
+        saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth });
         if (compositorRef && tuiRef) {
           compositorRef.dispose();
           compositorRef = null;
@@ -556,6 +559,7 @@ export default function piSidebar(pi: ExtensionAPI) {
       }
 
       sidebarEnabled = cmd === "on";
+      saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth });
 
       if (!sidebarEnabled) {
         compositorRef?.dispose();

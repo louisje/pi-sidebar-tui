@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-08-24
+
+### Added
+
+- **Persistent sidebar settings**: `/sidebar-tui on|off` and `/sidebar-tui width <N>` now persist across pi restarts. Settings are stored in `~/.pi/agent/sidebar-tui.json` (corrupt or out-of-range values fall back to defaults: enabled, width 40).
+
 ## [1.3.2] - 2026-08-22
 
 ### Changed

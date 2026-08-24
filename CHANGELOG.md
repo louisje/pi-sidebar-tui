@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-08-24
+
+### Changed
+
+- **Sidebar toggle shortcut is `Ctrl+S`**: `Option+S` collides with terminal character input (e.g. `ß`) and other Option/Super combos did not reach the TUI reliably. Note: `ctrl+s` is also pi's default `app.session.toggleSort` binding — if both fire, rebind one in `~/.pi/agent/keybindings.json`.
+
 ## [1.5.0] - 2026-08-24
 
 ### Added

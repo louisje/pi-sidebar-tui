@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-08-24
+
+### Changed
+
+- **Sidebar toggle shortcut moved to `Ctrl+I`**: `Ctrl+2` did not reach the TUI in some terminals. Note: `ctrl+i` shares its terminal byte with Tab.
+
+## [1.5.1] - 2026-08-24
+
+### Changed
+
+- **Sidebar toggle shortcut is `Ctrl+S`**: `Option+S` collides with terminal character input (e.g. `ß`) and other Option/Super combos did not reach the TUI reliably. Note: `ctrl+s` is also pi's default `app.session.toggleSort` binding — if both fire, rebind one in `~/.pi/agent/keybindings.json`.
+
+## [1.5.0] - 2026-08-24
+
+### Added
+
+- **Keyboard shortcut**: `Option+S` (`alt+s`) toggles the sidebar on/off, shared with the `/sidebar-tui on|off` command. Rebind via `~/.pi/agent/keybindings.json`.
+- Config file path can be overridden with the `PI_SIDEBAR_CONFIG` environment variable (defaults to `~/.pi/agent/sidebar-tui.json`).
+
+## [1.4.0] - 2026-08-24
+
+### Added
+
+- **Persistent sidebar settings**: `/sidebar-tui on|off` and `/sidebar-tui width <N>` now persist across pi restarts. Settings are stored in `~/.pi/agent/sidebar-tui.json` (corrupt or out-of-range values fall back to defaults: enabled, width 40).
+
+## [1.3.2] - 2026-08-22
+
+### Changed
+
+- **No opaque sidebar background by default**: The compositor no longer paints a solid background behind the sidebar, so terminal transparency shows through. Set `PI_SIDEBAR_BG="#rrggbb"` to opt back into an opaque panel (e.g. to hide scroll flash on opaque terminals).
+
 ## [1.2.0] - 2026-07-06
 
 ### Added

@@ -59,6 +59,8 @@ The sidebar activates automatically when a session starts. Toggle visibility wit
 /sidebar-tui on       # Enable sidebar
 /sidebar-tui off      # Disable sidebar
 /sidebar-tui width 45 # Set sidebar width (10-120)
+
+Ctrl+I                 # Toggle sidebar on/off (rebind in ~/.pi/agent/keybindings.json)
 ```
 
 Set custom session title:
@@ -66,6 +68,12 @@ Set custom session title:
 ```
 /session-title "My feature implementation"
 ```
+
+## Configuration
+
+| Env var | Default | Description |
+| --- | --- | --- |
+| `PI_SIDEBAR_BG` | *(unset)* | Paint the sidebar with an opaque `#rrggbb` background. Unset (default) leaves the terminal background untouched so terminal transparency shows through. Set e.g. `PI_SIDEBAR_BG="#000000"` to hide scroll flash on opaque terminals. |
 
 ## Requirements
 
@@ -109,6 +117,13 @@ The extension hooks into pi's event system (`session_start`, `tool_call`, `messa
 ```bash
 npm install
 npm test
+```
+
+## Publish on npm
+
+```bash
+npm login
+npm publish
 ```
 
 ## License

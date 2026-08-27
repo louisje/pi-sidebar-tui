@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.3] - 2026-08-27
+
+### Changed
+
+- **Sidebar toggle shortcut moved to `Shift+Alt+R`**.
+
 ## [1.5.2] - 2026-08-24
 
 ### Changed

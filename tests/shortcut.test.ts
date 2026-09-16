@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DEFAULT_SIDEBAR_SETTINGS } from "../config.ts";
+
+// The sidebar module captures width/todosMax from the config at import time
+// (the defaults when no file exists) and persists them on every toggle, so the
+// expected saved settings must match those defaults.
+const W = DEFAULT_SIDEBAR_SETTINGS.width;
+const saved = (enabled: boolean) => ({ enabled, width: W, todosMax: DEFAULT_SIDEBAR_SETTINGS.todosMax });
 
 function fakePi() {
   const shortcuts = new Map<string, { description?: string; handler: (ctx: any) => void }>();
@@ -22,7 +29,7 @@ function makeCtx(notify: (msg: string, level?: string) => void) {
   return { cwd: process.cwd(), ui: { notify } } as any;
 }
 
-test("ctrl+i shortcut is registered and toggles persistence", async () => {
+test("shift+alt+r shortcut is registered and toggles persistence", async () => {
   const configPath = join(mkdtempSync(join(tmpdir(), "sidebar-shortcut-")), "sidebar-tui.json");
   process.env.PI_SIDEBAR_CONFIG = configPath;
 
@@ -30,28 +37,28 @@ test("ctrl+i shortcut is registered and toggles persistence", async () => {
   const { shortcuts, pi } = fakePi();
   piSidebar(pi);
 
-  const sc = shortcuts.get("ctrl+i");
-  assert.ok(sc, 'shortcut "ctrl+i" should be registered');
+  const sc = shortcuts.get("shift+alt+r");
+  assert.ok(sc, 'shortcut "shift+alt+r" should be registered');
   assert.ok(sc!.description, "shortcut should have a description");
 
   // Start from known state: enabled (default)
-  writeFileSync(configPath, JSON.stringify({ enabled: true, width: 40 }));
+  writeFileSync(configPath, JSON.stringify({ enabled: true, width: W }));
 
   const messages: string[] = [];
   const ctx = makeCtx((msg) => messages.push(msg));
   await sc!.handler(ctx);
   assert.equal(messages.at(-1), "Sidebar disabled");
-  assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), { enabled: false, width: 40 });
+  assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), saved(false));
 
   await sc!.handler(ctx);
   assert.equal(messages.at(-1), "Sidebar enabled");
-  assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), { enabled: true, width: 40 });
+  assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), saved(true));
 });
 
 test("command handler and shortcut share the same enabled state", async () => {
   const configPath = join(mkdtempSync(join(tmpdir(), "sidebar-shortcut-")), "sidebar-tui.json");
   process.env.PI_SIDEBAR_CONFIG = configPath;
-  writeFileSync(configPath, JSON.stringify({ enabled: true, width: 40 }));
+  writeFileSync(configPath, JSON.stringify({ enabled: true, width: W }));
 
   const { default: piSidebar } = await import("../index.ts");
   const { shortcuts, commands, pi } = fakePi();
@@ -64,7 +71,7 @@ test("command handler and shortcut share the same enabled state", async () => {
   assert.equal(messages.at(-1), "Sidebar disabled");
 
   // Shortcut should now toggle FROM disabled -> enabled (shared state)
-  await shortcuts.get("ctrl+i")!.handler(ctx);
+  await shortcuts.get("shift+alt+r")!.handler(ctx);
   assert.equal(messages.at(-1), "Sidebar enabled");
-  assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), { enabled: true, width: 40 });
+  assert.deepEqual(JSON.parse(readFileSync(configPath, "utf8")), saved(true));
 });

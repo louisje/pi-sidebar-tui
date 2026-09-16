@@ -13,7 +13,6 @@ function makeCtx(overrides: Partial<SidebarContext> = {}): SidebarContext {
     sessionTitle: null,
     sessionId: null,
     todos: [],
-    subagents: [],
     branch: "main",
     aheadCount: 0,
     untrackedCount: 0,
@@ -38,17 +37,17 @@ function makeCtx(overrides: Partial<SidebarContext> = {}): SidebarContext {
     liveTps: null,
     lastTps: null,
     lastTurnMs: null,
+    ctxSamples: [],
     ...overrides,
   };
 }
 
-test("sidebar stacks all 4 panels", () => {
+test("sidebar stacks all panels", () => {
   const ctx = makeCtx({});
   const lines = renderSidebar(ctx, 40);
   const text = lines.map(strip).join("\n");
   assert.ok(text.includes("Session"), "missing Session panel");
   assert.ok(text.includes("Todos"), "missing Todos panel");
-  assert.ok(text.includes("Async Subagents"), "missing Subagents panel");
   assert.ok(text.includes("Workspace"), "missing Workspace panel");
 });
 
@@ -80,7 +79,6 @@ test("sidebar empty states for all panels render without error", () => {
     sessionTitle: null,
     sessionId: null,
     todos: [],
-    subagents: [],
     branch: null,
     workspaceFiles: [],
   });
@@ -89,6 +87,5 @@ test("sidebar empty states for all panels render without error", () => {
   const text = lines.map(strip).join("\n");
   assert.ok(text.includes("waiting for first message"));
   assert.ok(text.includes("no todos"));
-  assert.ok(text.includes("no subagents"));
   assert.ok(text.includes("not a git repo"));
 });

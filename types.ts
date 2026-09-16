@@ -7,20 +7,6 @@ export interface TodoItem {
   subAction?: string;
 }
 
-export type SubagentStatus = "running" | "completed" | "failed";
-
-export interface SubagentEntry {
-  id: string;
-  name: string;
-  status: SubagentStatus;
-  startedAt: number;
-  completedAt?: number;
-  turns: number;
-  toolCount: number;
-  tokens: number;
-  toolLog: string[];
-}
-
 export interface WorkspaceFile {
   path: string;
   added: number;
@@ -33,13 +19,24 @@ export interface McpServerInfo {
   totalCount: number;
   tokenEstimate: number;
   connected: boolean;
+  disabled: boolean;
 }
+
+export interface CtxSample {
+  tokens: number;
+  turns: number;
+}
+
+export type CtxLeft =
+  | { kind: "unknown" }
+  | { kind: "stable" }
+  | { kind: "left"; turns: number };
 
 export interface SidebarContext {
   sessionTitle: string | null;
   sessionId: string | null;
   todos: TodoItem[];
-  subagents: SubagentEntry[];
+  todosMax: number;
   branch: string | null;
   aheadCount: number;
   untrackedCount: number;
@@ -61,7 +58,12 @@ export interface SidebarContext {
   sessionStartMs: number;
   mcpServers: McpServerInfo[];
   modelProvider: string | null;
+  cavemanLevel: string | null;
+  cavemanFrame: number;
+  agentActive: boolean;
+  spinnerFrame: number;
   liveTps: number | null;
   lastTps: number | null;
   lastTurnMs: number | null;
+  ctxSamples: CtxSample[];
 }

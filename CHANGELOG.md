@@ -2,6 +2,87 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.3] - 2026-09-10
+
+### Added
+
+- **Auto-compact status on the context line**: The context detail line now shows `- compact auto` when compaction is enabled, and omits the suffix when disabled. The setting is read from pi settings files (`~/.pi/agent/settings.json`, with `.pi/settings.json` overriding for the current project; default on) and re-checked on sidebar refresh when the file changes.
+
+### Changed
+
+- **Active spinner color**: The agent activity spinner now uses the current thinking-level color instead of the fixed accent color, falling back to accent when the level is unknown.
+- **Context token format**: The context detail line uses `80k/200k tkns` (removed spaces around `/`) to save width.
+- **Todo in-progress glyph**: In-progress todos now use `◐` instead of `●`.
+
+### Fixed
+
+- **Auto-compact status not showing**: The previous lookup used an unavailable `ctx.settingsManager` path; the sidebar now reads the setting directly from pi settings files.
+
+## [1.7.2] - 2026-09-07
+
+### Added
+
+- **Agent activity spinner**: The Session panel model line now shows a small animated spinner just after the `model` label while the agent is working (and a static dot when idle) — a glanceable busy/idle indicator.
+- **Todos window cap**: The Todos panel now caps to a configurable number of items (`todosMax`, default 5) to keep the sidebar compact. It shows the most useful first — in-progress, then most recent — with a ` … +N more` footer for the rest. Set with `/sidebar-tui todos <N>` (persists) or `todosMax` in the config file.
+
+### Changed
+
+- **Default sidebar width**: New-install default sidebar width changed from 40 to 45 columns. Existing users keep their configured width (`~/.pi/agent/sidebar-tui.json`).
+
+## [1.7.1] - 2026-09-07
+
+### Added
+
+- **Caveman mode indicator**: The Session panel now shows the active `pi-caveman` level (`off`/`lite`/`full`/`ultra`/`wenyan*`/`micro`) with an animated campfire glyph that cycles while the agent runs and freezes when idle. State is read from the plugin's shared sources (the session `caveman-level` entry, falling back to `~/.pi/agent/caveman.json`); the line is hidden when the plugin is uninstalled or the level is off. No dependency on the `pi-caveman` package.
+
+### Changed
+
+- **Thinking level color**: The thinking level on the model line now uses pi's own per-level theme color (`thinkingOff`/`thinkingMinimal`/`thinkingLow`/`thinkingMedium`/`thinkingHigh`/`thinkingXhigh`/`thinkingMax`) instead of muted dim, matching what pi renders.
+- **Session row alignment**: The model / caveman / ctx / tool labels share a fixed-width column so their values align at the same position.
+- **Active tool placement**: The live "tool" line now renders right after the context / tokens line instead of above the model.
+- **Context detail unit**: The tokens line uses `tkns` (was `tokens`) to save width.
+
+## [1.7.0] - 2026-09-06
+
+### Added
+
+- **MCP servers panel**: New "MCP Servers" panel listing each configured server's status (connected / partial / disabled), direct vs. total tool counts, and an estimate of the token cost of exposing direct tools. Reads `~/.pi/agent/mcp.json` + `mcp-cache.json` (1.5s cache, invalidated on MCP status events); disabled servers are surfaced with no tool counts.
+- **Todos live capture + resume**: The Todos panel now reads the list from the `todo` tool's result `details` (so pi-todo / built-in todos actually appear) and reconstructs it from session history on `session_start` — the panel is correct immediately after quitting and resuming, and stays branch-aware.
+
+### Changed
+
+- **Shortcut changed**: Toggle sidebar shortcut moved from `Ctrl+Shift+S` to `Ctrl+Shift+T` to avoid conflict with the pi-web-access extension which also uses `Ctrl+Shift+S`.
+- **Decoupled config from pi runtime import**: `config.ts` no longer imports `getAgentDir()` from `@earendil-works/pi-coding-agent`; the agent-dir resolution (`$PI_CODING_AGENT_DIR` or `~/.pi/agent`) is inlined so tests never load the full pi-coding-agent module graph.
+- **1-space side-border indentation**: All panel content (session rows, MCP servers, todos, subagents, workspace files, and empty-state labels) is indented 1 space from the `│` left border for a consistent, less-crowded look.
+
+### Removed
+
+- **Async Subagents panel**: Dropped subagent tracking (task/dispatch/agent tool monitoring) from the sidebar — `panels/subagents.ts`, related types, event handling, and tests removed.
+
+## [1.6.2] - 2026-09-04
+
+### Added
+
+- **Context "turns left" estimate**: The session stats grid now shows a `left` row (under `turns`) estimating how many turns remain before the context window fills, based on recent context growth (first/last of a 10-turn sample buffer). Shows `≈Nt` colored by urgency (muted ≥20t, accent 5–19t, warning red <5t), `∞` when context is flat, or `—` until enough data. The context fill bar is now pace-aware too: it escalates to accent/warning when the estimate is <20t/<5t even if raw percentage is low.
+
+### Changed
+
+- **Session stats grid rebalanced**: `cost` moved to the Tokens column (under `cache`) so the context estimate pairs with `turns` in the Stats column; both columns are now 5 rows.
+
+### Changed
+
+- **Sidebar toggle shortcut moved to `Ctrl+Shift+S`**: `Ctrl+I` shares its terminal byte with Tab, so pressing Tab also toggled the sidebar. `Ctrl+Shift+S` is unambiguous on terminals with Kitty keyboard-protocol or modifyOtherKeys support (pi negotiates the Kitty protocol at startup).
+
+### Fixed
+
+- **Sidebar flicker/lag while processing data**: The compositor now repaints only the sidebar rows that actually changed (skipping the write entirely when nothing changed) and paints the sidebar inside pi's own render cycle as a single synchronized-output frame. pi's full-line erase (`\x1b[2K`) is bounded to the main-area width so its renders no longer wipe the sidebar columns — the primary cause of the flicker while tokens/tools stream.
+
+## [1.6.0] - 2026-09-03
+
+### Added
+
+- **Context usage progress bar**: The Session panel's context line is now a fill bar driven by live context-window usage — green below 70%, yellow 70-90%, red above 90% — with the token count and auto-compact status on a second line. Replaces the plain `tokens / window (pct%)` text.
+
 ## [1.5.3] - 2026-08-27
 
 ### Changed

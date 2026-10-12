@@ -2,10 +2,13 @@ import type { SidebarContext } from "../types.ts";
 import { dim, fg, COLORS, panelHeader } from "../colors.ts";
 
 export function renderMcpPanel(ctx: SidebarContext, width: number): string[] {
-  const servers = ctx.mcpServers;
-  if (!servers || servers.length === 0) return [];
+  const servers = ctx.mcpServers ?? [];
 
-  const lines: string[] = [...panelHeader("MCP Servers", width)];
+  // Hide the whole section when no servers are configured.
+  if (servers.length === 0) return [];
+
+  const header = panelHeader("MCP Servers", width);
+  const content: string[] = [];
 
   for (const srv of servers) {
     const dot = srv.disabled
@@ -26,8 +29,8 @@ export function renderMcpPanel(ctx: SidebarContext, width: number): string[] {
       ? srv.name.slice(0, nameMax - 1) + "…"
       : srv.name;
 
-    lines.push(dim(" ") + dot + " " + fg(COLORS.accent, name) + suffix);
+    content.push(dim(" ") + dot + " " + fg(COLORS.accent, name) + suffix);
   }
 
-  return lines;
+  return [...header, ...content];
 }

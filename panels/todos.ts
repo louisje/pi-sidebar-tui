@@ -59,27 +59,21 @@ export function selectTodosToShow(todos: TodoItem[], max: number): TodoItem[] {
 }
 
 export function renderTodosPanel(ctx: SidebarContext, width: number): string[] {
-  const { todos, todosMax } = ctx;
+  const { todos } = ctx;
   const done = todos.filter(t => t.status === "completed").length;
   const title = `Todos (${done}/${todos.length})`;
-  const lines: string[] = [...panelHeader(title, width)];
+  const header = panelHeader(title, width);
 
+  // Full list, in order. The scrollable viewport (see renderSidebar) decides
+  // how many are shown at once; no cap / "…+N more" footer here anymore.
+  const content: string[] = [];
   if (todos.length === 0) {
-    lines.push(dim(" (no todos)"));
-    return lines;
+    content.push(dim(" (no todos)"));
+  } else {
+    for (const todo of todos) {
+      content.push(renderTodoLine(todo, width));
+    }
   }
 
-  const max = typeof todosMax === "number" && todosMax > 0 ? todosMax : todos.length;
-  const shown = selectTodosToShow(todos, max);
-  const hidden = todos.length - shown.length;
-
-  for (const todo of shown) {
-    lines.push(renderTodoLine(todo, width));
-  }
-
-  if (hidden > 0) {
-    lines.push(dim(` … +${hidden} more`));
-  }
-
-  return lines;
+  return [...header, ...content];
 }

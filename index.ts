@@ -1,11 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { loadSidebarSettings, getAutoCompactEnabled, saveSidebarSettings, MIN_TODOS_MAX, MAX_TODOS_MAX } from "./config.ts";
+import { loadSidebarSettings, getAutoCompactEnabled, saveSidebarSettings, MIN_TODOS_MAX, MAX_TODOS_MAX, MIN_SCROLL_SPEED, MAX_SCROLL_SPEED } from "./config.ts";
 import type { TodoItem, TodoStatus, SidebarContext, CtxSample } from "./types.ts";
 import { parseTodos, reconstructTodosFromBranch } from "./parse-todos.ts";
-import { renderSidebar } from "./sidebar.ts";
 import { getWorkspaceData, invalidateWorkspaceCache } from "./workspace.ts";
 import { SidebarCompositor } from "./compositor.ts";
-import { getMcpServers, invalidateMcpCache } from "./mcp.ts";
+import { getMcpServers, invalidateMcpCache, type LiveMcpTool } from "./mcp.ts";
 import { loadCavemanConfig, resolveCavemanLevel, cavemanInterval, type CavemanConfig } from "./caveman.ts";
 import { setPiTheme } from "./colors.ts";
 
@@ -16,6 +15,7 @@ const initialSettings = loadSidebarSettings();
 let sidebarEnabled = initialSettings.enabled;
 let sidebarWidth = initialSettings.width;
 let todosMax = initialSettings.todosMax;
+let scrollSpeed = initialSettings.scrollSpeed;
 let sessionManager: any = null;
 let sessionTitle: string | null = null;
 let todos: TodoItem[] = [];
@@ -31,6 +31,7 @@ let cacheWrite = 0;
 let sessionCost = 0;
 let turnCount = 0;
 let activeTool: { name: string; startedAt: number } | null = null;
+let liveMcpToolsProvider: (() => readonly LiveMcpTool[] | null) | null = null;
 let sessionStartMs = Date.now();
 let modelProvider: string | null = null;
 let agentStartMs: number | null = null;
@@ -153,7 +154,7 @@ function buildSidebarContext(cwd: string | undefined): SidebarContext {
     activeTool,
     autoCompactEnabled: getAutoCompactEnabled({ cwd }),
     sessionStartMs,
-    mcpServers: getMcpServers(),
+    mcpServers: getMcpServers(liveMcpToolsProvider ? liveMcpToolsProvider() : null),
     modelProvider,
     cavemanLevel,
     cavemanFrame,
@@ -225,6 +226,18 @@ export default function piSidebar(pi: ExtensionAPI) {
   let tuiRef: any = null;
   let compositorRef: SidebarCompositor | null = null;
 
+  // Live MCP status source: built-in pi registers mcp__<server>__<tool> for
+  // every tool of a connected server, so the tool registry is the live truth.
+  liveMcpToolsProvider = () => {
+    try {
+      const tools = pi.getAllTools?.();
+      if (!Array.isArray(tools)) return null;
+      return tools.filter((t: any) => typeof t?.name === "string" && t.name.startsWith("mcp__"));
+    } catch {
+      return null;
+    }
+  };
+
   const stopCavemanAnim = () => {
     if (cavemanTimer) { clearInterval(cavemanTimer); cavemanTimer = null; }
     cavemanFrame = 0;
@@ -252,7 +265,7 @@ export default function piSidebar(pi: ExtensionAPI) {
 
   const setSidebarEnabled = (enabled: boolean, ctx: any) => {
     sidebarEnabled = enabled;
-    saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth, todosMax });
+    saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth, todosMax, scrollSpeed });
 
     if (!sidebarEnabled) {
       compositorRef?.dispose();
@@ -602,7 +615,7 @@ export default function piSidebar(pi: ExtensionAPI) {
           return;
         }
         sidebarWidth = n;
-        saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth, todosMax });
+        saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth, todosMax, scrollSpeed });
         if (compositorRef && tuiRef) {
           compositorRef.dispose();
           compositorRef = null;
@@ -622,14 +635,27 @@ export default function piSidebar(pi: ExtensionAPI) {
           return;
         }
         todosMax = n;
-        saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth, todosMax });
+        saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth, todosMax, scrollSpeed });
         requestRender?.();
         (ctx as any).ui?.notify?.(`Todos max set to ${n}`, "info");
         return;
       }
 
+      if (cmd === "scroll") {
+        const n = parseInt(parts[1] ?? "", 10);
+        if (isNaN(n) || n < MIN_SCROLL_SPEED || n > MAX_SCROLL_SPEED) {
+          (ctx as any).ui?.notify?.(`Usage: /sidebar-tui scroll <${MIN_SCROLL_SPEED}-${MAX_SCROLL_SPEED}>`, "warning");
+          return;
+        }
+        scrollSpeed = n;
+        saveSidebarSettings({ enabled: sidebarEnabled, width: sidebarWidth, todosMax, scrollSpeed });
+        requestRender?.();
+        (ctx as any).ui?.notify?.(`Scroll speed set to ${n} lines`, "info");
+        return;
+      }
+
       if (cmd !== "on" && cmd !== "off") {
-        (ctx as any).ui?.notify?.("Usage: /sidebar-tui on | off | width <N> | todos <N>", "warning");
+        (ctx as any).ui?.notify?.("Usage: /sidebar-tui on | off | width <N> | todos <N> | scroll <N>", "warning");
         return;
       }
 
@@ -643,6 +669,67 @@ export default function piSidebar(pi: ExtensionAPI) {
       currentCwd = (ctx as any).cwd;
       setSidebarEnabled(!sidebarEnabled, ctx);
     },
+  });
+
+  // Sidebar scrolling. Works in any TUI mode (these are pi shortcuts, not
+  // wheel events). The whole sidebar is one scroll region for now; the
+  // compositor clamps to the visible overflow.
+  // Keyboard scrolling targets the focused panel (last one the mouse scrolled,
+  // else the first scrollable panel present).
+  const scrollByLines = (delta: number) => { compositorRef?.scrollFocused(delta); };
+  const pageLines = () => scrollSpeed * 3;
+
+  pi.registerCommand("sidebar-scroll", {
+    description: "Scroll sidebar panel: /sidebar-scroll up | down | top | bottom | <lines>",
+    handler: async (args, ctx) => {
+      if (!compositorRef) {
+        (ctx as any).ui?.notify?.("Sidebar is not active.", "warning");
+        return;
+      }
+      const arg = args?.trim().toLowerCase() || "down";
+      if (arg === "up") {
+        compositorRef.scrollFocused(-scrollSpeed);
+      } else if (arg === "down") {
+        compositorRef.scrollFocused(scrollSpeed);
+      } else if (arg === "top" || arg === "start") {
+        compositorRef.scrollFocused(-100000);
+      } else if (arg === "bottom" || arg === "end") {
+        compositorRef.scrollFocused(100000);
+      } else {
+        const n = parseInt(arg, 10);
+        if (!isNaN(n)) {
+          compositorRef.scrollFocused(n);
+        } else {
+          (ctx as any).ui?.notify?.("Usage: /sidebar-scroll up | down | top | bottom | <lines>", "warning");
+          return;
+        }
+      }
+    },
+  });
+
+  pi.registerShortcut("alt+shift+up", {
+    description: "Scroll sidebar up",
+    handler: async () => { scrollByLines(-scrollSpeed); },
+  });
+  pi.registerShortcut("alt+shift+down", {
+    description: "Scroll sidebar down",
+    handler: async () => { scrollByLines(scrollSpeed); },
+  });
+  pi.registerShortcut("ctrl+alt+up", {
+    description: "Scroll sidebar up",
+    handler: async () => { scrollByLines(-scrollSpeed); },
+  });
+  pi.registerShortcut("ctrl+alt+down", {
+    description: "Scroll sidebar down",
+    handler: async () => { scrollByLines(scrollSpeed); },
+  });
+  pi.registerShortcut("alt+pageup", {
+    description: "Scroll sidebar page up",
+    handler: async () => { scrollByLines(-pageLines()); },
+  });
+  pi.registerShortcut("alt+pagedown", {
+    description: "Scroll sidebar page down",
+    handler: async () => { scrollByLines(pageLines()); },
   });
 
   pi.registerCommand("session-title", {

@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.8] - 2026-10-05
+
+### Added
+
+- **Per-panel scrolling**: The Todos, MCP, and Workspace panels now scroll **independently** instead of scrolling the whole sidebar. The Session panel stays pinned at the top. A water-filler divides the available rows among the scrollable panels so the whole sidebar always fits the terminal (no clipping on normal windows); each panel whose content exceeds its window scrolls with `▲ N lines above` / `▼ N lines below` indicators.
+- **Mouse-wheel scrolling** (fullscreen mode only): scroll the mouse wheel over a panel to scroll that panel; the panel under the cursor becomes the *focused* panel. The wheel over the main viewport still scrolls pi normally.
+- **Keyboard focus model**: `/sidebar-scroll`, `Alt+Shift+Up/Down`, and `Alt+PageUp/Down` now scroll the *focused* panel (the last one scrolled with the mouse, or the first scrollable panel present).
+
+### Changed
+
+- The Todos and Workspace panels no longer hard-cap their content (the todos ` … +N more` footer and the workspace 15-file slice are gone); they show everything and scroll internally. The `todos` setting now sizes the todos panel's *viewport* rather than capping the visible list.
+- **No dead gap**: the scrollable panels share the available rows and fill down to the cwd row. MCP and Workspace are no longer fixed at 6 / 8 rows — they grow to absorb spare rows, so the sidebar leaves no blank band above the cwd when the content is long enough.
+- **Default todos viewport**: `todosMax` now defaults to 7 (was 10) — the todos panel shows 7 items before it scrolls. Override with `/sidebar-tui todos <N>` (1-100).
+
+## [1.7.7] - 2026-10-04
+
+### Added
+
+- **Sidebar scrolling**: When the sidebar content is taller than the visible terminal rows (small terminals, or many todos / MCP servers / workspace files), the sidebar scrolls instead of silently clipping. The visible window shows `▲ N lines above` / `▼ N lines below` indicators, and the last line is always reachable without flicker.
+- **Scroll controls**: `/sidebar-scroll up | down | top | bottom | <lines>` command, plus keyboard shortcuts `Alt+Shift+Up/Down` and `Ctrl+Alt+Up/Down` (one nudge) and `Alt+PageUp/PageDown` (a page). These work in any TUI mode.
+- **`scrollSpeed` setting** (default 3, range 1–20) controls the nudge size; a page is 3× this. Set via `/sidebar-tui scroll <N>` (persisted) or the `PI_SIDEBAR_SCROLL_SPEED` env var (env wins over the file).
+
+### Changed
+
+- The compositor now forces a full sidebar repaint when pi's render emits a cursor-scroll / screen-clear sequence, so scrolled content never shows stale or misaligned rows.
+
+## [1.7.6] - 2026-10-03
+
+### Changed
+
+- **MCP status via built-in pi MCP**: The MCP Servers panel now reads live connection state from pi's built-in MCP tool registry (`pi.getAllTools()`) instead of the `mcp-cache.json` file written by the separate pi-mcp-adapter extension. A server counts as connected once pi registers its `mcp__<server>__<tool>` tools; tools with `direct` exposure are the ones counted as direct and included in the token estimate. `mcp-cache.json` is still honored as a per-server fallback when present.
+
+### Fixed
+
+- **MCP connection status stuck disconnected**: With built-in pi MCP, `mcp-cache.json` is no longer written, so every configured server rendered as disconnected (`○`).
+- **Disabled MCP servers not marked**: Built-in `mcp.json` disables a server with `"enabled": false`; the panel only recognized the legacy `disabled: true` field. Such servers now show the `⊘` disabled glyph.
+
+## [1.7.5] - 2026-09-24
+
+### Changed
+
+- **MCP section hidden when empty**: The MCP Servers section is now hidden entirely when no MCP servers are configured (previously it always rendered its header + reserved blank rows).
+- **MCP spacing fits server count**: The MCP panel no longer pads to a fixed 2 content rows. It renders exactly one row per configured server, so a single server shows only its row plus the separator before Todos instead of an extra blank row.
+
+## [1.7.4] - 2026-09-16
+
+### Changed
+
+- **Reserved panel space**: The MCP and Todos panels now reserve a fixed block of rows up front (MCP = header + 2, Todos = header + 7) so the sidebar layout is stable and pre-defined. Panels pad with blank rows when content is short and grow when content exceeds the reserved space (Todos still caps at `todosMax` with its ` … +N more` footer). The MCP panel header is now always visible, even with no servers.
+- **Context bar color thresholds**: The context progress bar now colors by raw window usage — green below 50%, yellow 50–80%, red above 80% (red uses the theme's `error` color). Replaces the previous pace-aware escalation (green <70% / yellow 70–90% / red >90%).
+- **Default todos window**: New-install default `todosMax` changed from 5 to 10. Existing users keep their configured value (`~/.pi/agent/sidebar-tui.json`).
+
 ## [1.7.3] - 2026-09-10
 
 ### Added

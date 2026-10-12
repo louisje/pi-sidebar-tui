@@ -32,6 +32,11 @@ function writeConfig(dir: string, config: unknown, cache?: unknown): void {
   if (cache !== undefined) writeFileSync(join(dir, "mcp-cache.json"), JSON.stringify(cache), "utf8");
 }
 
+/** Minimal live tool as reported by pi.getAllTools() for a connected built-in MCP server. */
+function liveTool(name: string, exposure: string = "codemode", description: string = "d") {
+  return { name, description, parameters: { type: "object" }, exposure };
+}
+
 function makeMcpCtx(servers: McpServerInfo[]): SidebarContext {
   return {
     sessionTitle: null,
@@ -151,6 +156,95 @@ test("getMcpServers: invalidateMcpCache forces a fresh read", () => {
   }
 });
 
+// ─── getMcpServers with live built-in pi tools ───────────────────────────────
+
+test("getMcpServers: live mcp tools report connected with counts", () => {
+  withAgentDir(
+    (dir) => writeConfig(dir, { mcpServers: { Blender: { command: "x" } } }),
+    () => {
+      const s = getMcpServers([
+        liveTool("mcp__Blender__get_scene", "codemode"),
+        liveTool("mcp__Blender__set_property", "direct"),
+      ])[0];
+      assert.equal(s.connected, true);
+      assert.equal(s.totalCount, 2);
+      assert.equal(s.directCount, 1, "only direct-exposure tools count as direct");
+      assert.ok(s.tokenEstimate > 0, "token estimate should be positive");
+    },
+  );
+});
+
+test("getMcpServers: configured server with no live tools and no cache is disconnected", () => {
+  withAgentDir(
+    (dir) => writeConfig(dir, { mcpServers: { srv: { command: "x" } } }),
+    () => {
+      const s = getMcpServers([])[0];
+      assert.equal(s.disabled, false);
+      assert.equal(s.connected, false);
+      assert.equal(s.totalCount, 0);
+      assert.equal(s.directCount, 0);
+      assert.equal(s.tokenEstimate, 0);
+    },
+  );
+});
+
+test("getMcpServers: enabled false marks server disabled even if live tools exist", () => {
+  withAgentDir(
+    (dir) => writeConfig(dir, { mcpServers: { srv: { command: "x", enabled: false } } }),
+    () => {
+      const s = getMcpServers([liveTool("mcp__srv__t", "direct")])[0];
+      assert.equal(s.disabled, true);
+      assert.equal(s.connected, false);
+      assert.equal(s.totalCount, 0);
+    },
+  );
+});
+
+test("getMcpServers: normalizes server name in live tool prefix", () => {
+  withAgentDir(
+    (dir) => writeConfig(dir, { mcpServers: { "dev-resolve": { command: "x" } } }),
+    () => {
+      // pi names tools mcp__dev_resolve__* (non-alphanumerics become _)
+      const s = getMcpServers([liveTool("mcp__dev_resolve__do_thing", "direct")])[0];
+      assert.equal(s.connected, true);
+      assert.equal(s.totalCount, 1);
+      assert.equal(s.directCount, 1);
+    },
+  );
+});
+
+test("getMcpServers: live tools do not leak across similar server names", () => {
+  withAgentDir(
+    (dir) => writeConfig(dir, { mcpServers: { a: { command: "x" }, ab: { command: "y" } } }),
+    () => {
+      const servers = getMcpServers([liveTool("mcp__ab__t", "direct")]);
+      const a = servers.find((x) => x.name === "a")!;
+      const ab = servers.find((x) => x.name === "ab")!;
+      assert.equal(a.connected, false);
+      assert.equal(a.totalCount, 0);
+      assert.equal(ab.connected, true);
+      assert.equal(ab.totalCount, 1);
+    },
+  );
+});
+
+test("getMcpServers: live tools take precedence over cached tools", () => {
+  withAgentDir(
+    (dir) =>
+      writeConfig(
+        dir,
+        { mcpServers: { srv: { command: "x" } } },
+        { version: 1, servers: { srv: { tools: [{ name: "c1" }, { name: "c2" }, { name: "c3" }] } } },
+      ),
+    () => {
+      const s = getMcpServers([liveTool("mcp__srv__live1", "direct")])[0];
+      assert.equal(s.connected, true);
+      assert.equal(s.totalCount, 1, "live tool list is authoritative");
+      assert.equal(s.directCount, 1);
+    },
+  );
+});
+
 // ─── MCP panel ────────────────────────────────────────────────────────────────
 
 test("mcp panel: disabled server shows a distinct glyph and no tool counts", () => {
@@ -171,4 +265,26 @@ test("mcp panel: connected-all server keeps success dot and counts", () => {
   assert.ok(text.includes("3/3"), `expected 3/3 count, got: ${text}`);
   assert.ok(text.includes("●"), `expected success dot, got: ${text}`);
   assert.ok(!text.includes("⊘"), `unexpected disabled glyph: ${text}`);
+});
+
+test("mcp panel: empty hides the whole section", () => {
+  const lines = renderMcpPanel(makeMcpCtx([]), 40);
+  assert.equal(lines.length, 0, `expected empty array when no servers, got ${lines.length}`);
+});
+
+test("mcp panel: single server is header + 1 row (no padding)", () => {
+  const lines = renderMcpPanel(makeMcpCtx([
+    { name: "srv", directCount: 1, totalCount: 1, tokenEstimate: 50, connected: true, disabled: false },
+  ]), 40);
+  assert.equal(lines.length, 3, `expected 3 rows (2 header + 1 server), got ${lines.length}`);
+  assert.ok(strip(lines[0]!).includes("MCP Servers"), `header missing, got: ${strip(lines[0]!)}`);
+  assert.ok(strip(lines[2]!).includes("srv"), `server row missing, got: ${strip(lines[2]!)}`);
+});
+
+test("mcp panel: grows with server count", () => {
+  const servers = Array.from({ length: 7 }, (_, i) => ({
+    name: `srv${i}`, directCount: 1, totalCount: 1, tokenEstimate: 10, connected: true, disabled: false,
+  }));
+  const lines = renderMcpPanel(makeMcpCtx(servers), 40);
+  assert.equal(lines.length, 9, `expected 9 rows (2 header + 7 servers), got ${lines.length}`);
 });

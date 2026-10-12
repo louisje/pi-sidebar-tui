@@ -1,6 +1,6 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { SidebarContext } from "./types.ts";
-import { renderSidebar } from "./sidebar.ts";
+import { renderSidebar, type PanelSlot } from "./sidebar.ts";
 import { dim } from "./colors.ts";
 
 // No background by default so terminal transparency shows through.
@@ -48,6 +48,16 @@ export class SidebarCompositor {
   private cachedRows = 0;
   private cachedWidth = 0;
   private cacheValid = false;
+
+  // Per-panel scroll offset (content rows hidden above the window) and the
+  // last rendered panel layout (row ranges + each panel's maxOffset).
+  private panelOffsets = new Map<string, number>();
+  private layout: PanelSlot[] = [];
+
+  // Focused panel for keyboard scrolling (set by the mouse, defaults to the
+  // first scrollable panel present). Plus the original routeWheel we wrap.
+  private focusedPanel: string | null = null;
+  private originalRouteWheel: ((event: any, delta: number) => void) | null = null;
 
   constructor(tui: any, getCtx: () => SidebarContext, sidebarWidth = 40) {
     this.tui = tui;
@@ -107,7 +117,7 @@ export class SidebarCompositor {
             writable: true,
             value(this: any, data: string) {
               if (typeof data !== "string") return originalWrite.call(this, data);
-              if (/\x1b\[(?:2J|3J)/.test(data)) forceFullPaint = true;
+              if (/\x1b\[(?:2J|3J)|\n|\r\n|\x1b\[\d*[ST]|\x1bM/.test(data)) forceFullPaint = true;
               const sanitized = data
                 .replace(/\x1b\[\?2026[hl]/g, "")
                 .replace(/\x1b\[2K/g, `\x1b[${mainWidth}X`);
@@ -142,11 +152,102 @@ export class SidebarCompositor {
         return result;
       };
     }
+
+    this.installMouseWheel();
+  }
+
+  // Wrap the TUI's wheel routing so a wheel over the sidebar columns scrolls
+  // the panel under the cursor instead of the main viewport. Fullscreen mode
+  // only (routeWheel is the alt-screen's fallback wheel handler).
+  private installMouseWheel(): void {
+    if (typeof this.tui.routeWheel !== "function") return;
+    const original = this.tui.routeWheel;
+    this.originalRouteWheel = original;
+    const self = this;
+    this.tui.routeWheel = function (event: any, delta: number) {
+      if (self.disposed) return original.call(self.tui, event, delta);
+      const sepCol = self.getSeparatorColumn(); // 1-based
+      const x = typeof event?.x === "number" ? event.x : -1; // 0-based
+      const y = typeof event?.y === "number" ? event.y : -1; // 0-based
+      if (x >= sepCol - 1) {
+        // Over the sidebar: scroll the panel under the cursor (0-based y -> 1-based row).
+        const row = y + 1;
+        if (self.scrollPanelAtRow(row, delta)) {
+          const id = self.panelAtRow(row);
+          if (id) self.setFocusedPanel(id);
+          return; // consumed: don't scroll the main viewport
+        }
+        self.scrollFocused(delta);
+        return;
+      }
+      return original.call(self.tui, event, delta);
+    };
   }
 
   paint(): void {
     // Standalone paint (e.g. from a state-update request): its own sync frame.
     this.paintInternal(false, true);
+  }
+
+  getPanelOffset(id: string): number {
+    return this.panelOffsets.get(id) ?? 0;
+  }
+
+  getPanelMax(id: string): number {
+    const slot = this.layout.find((s) => s.id === id);
+    return slot?.maxOffset ?? 0;
+  }
+
+  scrollPanelBy(id: string, delta: number): void {
+    const max = this.getPanelMax(id);
+    const next = Math.max(0, Math.min(max, this.getPanelOffset(id) + delta));
+    if (next !== this.getPanelOffset(id) || !this.cacheValid) {
+      this.panelOffsets.set(id, next);
+      this.cacheValid = false;
+      this.paint();
+    }
+  }
+
+  // Scrollable panel id whose row range contains `row` (1-based), or null.
+  panelAtRow(row: number): string | null {
+    const r = Math.floor(row);
+    for (const slot of this.layout) {
+      if (slot.scrollable && r > slot.startRow && r <= slot.endRow) return slot.id;
+    }
+    return null;
+  }
+
+  // Scroll the panel under the cursor. Returns true when a panel was hit.
+  scrollPanelAtRow(row: number, delta: number): boolean {
+    const id = this.panelAtRow(row);
+    if (!id) return false;
+    this.scrollPanelBy(id, delta);
+    return true;
+  }
+
+  // Column where the sidebar's left border sits (1-based). Input routing uses
+  // it to decide whether the mouse is over the sidebar.
+  getSeparatorColumn(): number {
+    return this.rawColumns() - this.sidebarWidth;
+  }
+
+  getFocusedPanel(): string | null {
+    if (this.focusedPanel && this.layout.some((s) => s.id === this.focusedPanel && s.scrollable)) {
+      return this.focusedPanel;
+    }
+    return this.layout.find((s) => s.scrollable)?.id ?? null;
+  }
+
+  setFocusedPanel(id: string): void {
+    this.focusedPanel = id;
+  }
+
+  // Scroll the focused panel (keyboard path). Returns false when no panel.
+  scrollFocused(delta: number): boolean {
+    const id = this.getFocusedPanel();
+    if (!id) return false;
+    this.scrollPanelBy(id, delta);
+    return true;
   }
 
   private rawColumns(): number {
@@ -180,24 +281,40 @@ export class SidebarCompositor {
     const sidebarCol = sepCol + 1;
 
     const ctx = this.getCtx();
-    const lines = renderSidebar(ctx, sw);
 
-    // Build the full set of formatted lines (panel rows + bottom cwd row).
+    // Build the cwd bottom row (pinned to the last terminal row when present).
     const home = process.env["HOME"] ?? "";
     const cwd = ctx.cwd ?? "";
+    const hasCwd = Boolean(cwd);
     const cwdDisplay = home && cwd.startsWith(home) ? "~" + cwd.slice(home.length) : cwd;
     const cwdTruncated = visibleWidth(cwdDisplay) > sw - 1
       ? "…" + cwdDisplay.slice(-(sw - 2))
       : cwdDisplay;
     const cwdLine = dim(" " + cwdTruncated);
 
+    // Visible panel rows = all rows minus the pinned cwd row (when present).
+    const visiblePanelRows = hasCwd ? Math.max(1, rawRows - 1) : rawRows;
+
+    // Adaptive render: the water-filler fits the panels into visiblePanelRows,
+    // and each panel scrolls internally when its content exceeds its window.
+    // The result always fits, so we paint top-aligned with no whole-sidebar
+    // offset. The cwd row is pinned to the final terminal row.
+    const offsetRecord: Record<string, number> = {};
+    for (const [id, off] of this.panelOffsets) offsetRecord[id] = off;
+    const { lines, layout } = renderSidebar(ctx, sw, visiblePanelRows, offsetRecord);
+    this.layout = layout;
+
+    const panelLinesToRender: string[] = [];
+    for (let i = 0; i < visiblePanelRows; i++) {
+      panelLinesToRender.push(lines[i] ?? "");
+    }
+
     const formattedLines: string[] = [];
-    for (let row = 1; row <= rawRows; row++) {
-      if (row === rawRows && cwd) {
-        formattedLines.push(this.formatLine(cwdLine, sw));
-      } else {
-        formattedLines.push(this.formatLine(lines[row - 1], sw));
-      }
+    for (let i = 0; i < visiblePanelRows; i++) {
+      formattedLines.push(this.formatLine(panelLinesToRender[i], sw));
+    }
+    if (hasCwd) {
+      formattedLines.push(this.formatLine(cwdLine, sw));
     }
 
     // Repaint only rows that changed since the last paint. Skip the write
@@ -257,6 +374,11 @@ export class SidebarCompositor {
 
     if (this.originalDoRender !== null) {
       this.tui.doRender = this.originalDoRender;
+    }
+
+    if (this.originalRouteWheel !== null) {
+      this.tui.routeWheel = this.originalRouteWheel;
+      this.originalRouteWheel = null;
     }
   }
 }

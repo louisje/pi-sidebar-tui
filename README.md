@@ -11,7 +11,7 @@ Displays a real-time sidebar panel inside the pi terminal UI showing session met
 - Session elapsed time (updated every 30 seconds)
 - Active tool indicator with live elapsed timer
 - Current model name with thinking level (`think:high`, `think:medium`, etc.)
-- Context window usage: `tokens / max_window (pct%)` — fill bar escalates color by usage **and** by pace
+- Context window usage: `tokens / max_window (pct%)` — fill bar colored by usage: green <50%, yellow 50–80%, red >80%
 - Context estimate: `left ≈Nt` — turns remaining until the window fills at recent growth rate (`∞` when flat, `—` until enough data); colored muted ≥20t / accent 5–19t / warning red <5t
 - Auto-compact status indicator
 - Token input/output totals + session cost
@@ -50,12 +50,26 @@ The extension auto-registers via the `"pi"` field in `package.json`.
 The sidebar activates automatically when a session starts. Toggle visibility with:
 
 ```
-/sidebar-tui on       # Enable sidebar
-/sidebar-tui off      # Disable sidebar
-/sidebar-tui width 45 # Set sidebar width (10-120)
+/sidebar-tui on        # Enable sidebar
+/sidebar-tui off       # Disable sidebar
+/sidebar-tui width 45  # Set sidebar width (10-120)
+/sidebar-tui todos 7   # Set the todos panel viewport height (1-100, default 7)
+/sidebar-tui scroll 3  # Set keyboard scroll nudge size in lines (1-20, default 3)
 
 Shift+Alt+R            # Toggle sidebar on/off (rebind in ~/.pi/agent/keybindings.json)
+/sidebar-scroll up      # Scroll the focused panel up one nudge
+/sidebar-scroll down    # Scroll the focused panel down one nudge
+/sidebar-scroll top     # Scroll the focused panel to the top
+/sidebar-scroll bottom  # Scroll the focused panel to the bottom
+/sidebar-scroll 10      # Scroll the focused panel by N lines
+
+Alt+Shift+Up / Down     # Scroll the focused panel up / down one nudge (Ctrl+Alt+Up / Down too)
+Alt+PageUp / PageDown   # Scroll the focused panel a page (3x the nudge size)
 ```
+
+The **Session** panel stays pinned at the top. The **Todos**, **MCP**, and **Workspace** panels each scroll **independently** when their content is taller than their own window (small terminal, or many todos / MCP servers / workspace files). Each scrolling panel shows `▲ N lines above` / `▼ N lines below` indicators; panels that fit render in full with no indicators. The scrollable panels share the available rows and fill down to the cwd row, so there's no dead blank band above it when the content is long enough (on a very short terminal the panels are squeezed down to fit, or clip, rather than pushing the whole sidebar off-screen).
+
+**Scrolling:** the mouse wheel over a panel scrolls that panel (fullscreen mode only) and focuses it. The keyboard (`/sidebar-scroll`, `Alt+Shift+Up/Down`, `Alt+PageUp/Down`) scrolls the *focused* panel — the last one you scrolled with the mouse, or the first scrollable panel if you haven't yet.
 
 Set custom session title:
 
@@ -68,6 +82,7 @@ Set custom session title:
 | Env var | Default | Description |
 | --- | --- | --- |
 | `PI_SIDEBAR_BG` | *(unset)* | Paint the sidebar with an opaque `#rrggbb` background. Unset (default) leaves the terminal background untouched so terminal transparency shows through. Set e.g. `PI_SIDEBAR_BG="#000000"` to hide scroll flash on opaque terminals. |
+| `PI_SIDEBAR_SCROLL_SPEED` | `3` | Lines per keyboard scroll nudge (1-20). Overrides the persisted `scrollSpeed`; a page is 3x this. The mouse wheel uses the terminal's native scroll amount. |
 
 ## Requirements
 

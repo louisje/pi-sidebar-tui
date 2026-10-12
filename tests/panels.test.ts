@@ -330,41 +330,38 @@ test("session panel: left row sits under turns row (col1 order)", () => {
   assert.ok(leftIdx > turnsIdx, `expected left under turns (turns=${turnsIdx}, left=${leftIdx})`);
 });
 
-// ─── Session panel: pace-aware context bar ───────────────────────────────────
+// ─── Session panel: context bar color (by usage %) ──────────────────────────
 
 function barLine(ctx: SidebarContext, width = 40): string | undefined {
   return renderSessionPanel(ctx, width).find(l => strip(l).includes("█"));
 }
 
 const HEX_SUCCESS = "38;2;95;175;95";
+const HEX_ERROR = "38;2;224;85;97";
 
-test("ctx bar: escalates to warning when estimate < 5 turns despite low pct", () => {
-  // pct 40 (would be success) but pace 2500/turn, remaining 10000 → 4 turns
-  const ctx = makeCtxEst({ contextTokens: 190000, contextPercent: 40, ctxSamples: [S(187500, 1), S(190000, 2)] });
-  const bar = barLine(ctx);
+test("ctx bar: green (success) below 50%", () => {
+  const bar = barLine(makeCtx({ contextPercent: 30 }));
   assert.ok(bar, "no bar line");
-  assert.ok(bar!.includes(HEX_WARNING), `expected warning bar, got: "${bar}"`);
+  assert.ok(bar!.includes(HEX_SUCCESS), `expected green bar, got: "${bar}"`);
 });
 
-test("ctx bar: escalates to accent when estimate 5-19 turns", () => {
-  const ctx = makeCtxEst({ contextPercent: 40, ctxSamples: [S(100000, 0), S(100625, 1)] }); // 16 turns
-  const bar = barLine(ctx);
+test("ctx bar: yellow (accent) between 50% and 80%", () => {
+  const bar = barLine(makeCtx({ contextPercent: 65 }));
   assert.ok(bar, "no bar line");
-  assert.ok(bar!.includes(HEX_ACCENT), `expected accent bar, got: "${bar}"`);
+  assert.ok(bar!.includes(HEX_ACCENT), `expected yellow bar, got: "${bar}"`);
 });
 
-test("ctx bar: stays success when estimate >= 20 turns and pct low", () => {
-  const ctx = makeCtxEst({ contextPercent: 40, ctxSamples: [S(100000, 0), S(100250, 1)] }); // 40 turns
-  const bar = barLine(ctx);
+test("ctx bar: red (error) above 80%", () => {
+  const bar = barLine(makeCtx({ contextPercent: 90 }));
   assert.ok(bar, "no bar line");
-  assert.ok(bar!.includes(HEX_SUCCESS), `expected success bar, got: "${bar}"`);
+  assert.ok(bar!.includes(HEX_ERROR), `expected red bar, got: "${bar}"`);
 });
 
-test("ctx bar: pct-based warning still applies without samples", () => {
-  const ctx = makeCtxEst({ contextPercent: 95, ctxSamples: [] });
-  const bar = barLine(ctx);
-  assert.ok(bar, "no bar line");
-  assert.ok(bar!.includes(HEX_WARNING), `expected warning bar, got: "${bar}"`);
+test("ctx bar: boundaries — 49 green, 50 yellow, 80 yellow, 81 red", () => {
+  assert.ok(barLine(makeCtx({ contextPercent: 49 }))!.includes(HEX_SUCCESS), "49 should be green");
+  assert.ok(barLine(makeCtx({ contextPercent: 50 }))!.includes(HEX_ACCENT), "50 should be yellow");
+  assert.ok(barLine(makeCtx({ contextPercent: 80 }))!.includes(HEX_ACCENT), "80 should be yellow");
+  assert.ok(barLine(makeCtx({ contextPercent: 81 }))!.includes(HEX_ERROR), "81 should be red");
 });
 
 test("session panel: left row fits width at narrow sidebar", () => {
@@ -380,6 +377,22 @@ test("session panel: left row fits width at narrow sidebar", () => {
 test("todos panel: empty shows (no todos)", () => {
   const lines = renderTodosPanel(makeCtx({ todos: [] }), 40);
   assert.ok(lines.map(strip).join("\n").includes("no todos"));
+});
+
+test("todos panel: empty renders header + (no todos)", () => {
+  const lines = renderTodosPanel(makeCtx({ todos: [] }), 40);
+  assert.equal(lines.length, 3, `expected 3 rows (2 header + 1), got ${lines.length}`);
+});
+
+test("todos panel: renders header + one row per todo (no cap)", () => {
+  const lines = renderTodosPanel(makeCtx({ todos: mkTodos(3) }), 40);
+  assert.equal(lines.length, 5, `expected 5 rows (2 header + 3), got ${lines.length}`);
+});
+
+test("todos panel: shows all todos when over the viewport (no more footer)", () => {
+  const lines = renderTodosPanel(makeCtx({ todos: mkTodos(12), todosMax: 10 }), 40);
+  assert.equal(lines.length, 14, `expected 14 rows (2 header + 12), got ${lines.length}`);
+  assert.ok(!lines.map(strip).join("\n").includes("more"), `no more footer expected`);
 });
 
 test("todos panel: header count is done/total", () => {
@@ -473,14 +486,7 @@ test("selectTodosToShow: in-progress first, then most recent", () => {
   assert.deepEqual(selectTodosToShow(t, 3).map(x => x.id), ["3", "6", "7"]);
 });
 
-test("todos panel: caps to todosMax with '+N more' footer", () => {
-  const text = renderTodosPanel(makeCtx({ todos: mkTodos(8), todosMax: 5 }), 40).map(strip).join("\n");
-  assert.ok(text.includes("task 8"), `expected most recent, got: ${text}`);
-  assert.ok(!text.includes("task 3"), `task 3 should be hidden, got: ${text}`);
-  assert.ok(text.includes("+3 more"), `expected +3 more footer, got: ${text}`);
-});
-
-test("todos panel: in-progress floated to top within cap", () => {
+test("todos panel: shows all todos in natural order (no cap, no float)", () => {
   const todos: TodoItem[] = [
     { id: "1", content: "old-pending", status: "pending" },
     { id: "2", content: "the-active", status: "in_progress" },
@@ -490,9 +496,9 @@ test("todos panel: in-progress floated to top within cap", () => {
     { id: "6", content: "recent-4", status: "pending" },
   ];
   const lines = renderTodosPanel(makeCtx({ todos, todosMax: 3 }), 40).map(strip);
-  const shown = lines.filter(l => /the-active|recent-/.test(l));
-  assert.equal(shown.length, 3, `expected 3 shown, got: ${lines.join("|")}`);
-  assert.ok(shown[0].includes("the-active"), `in-progress should be first, got: ${shown[0]}`);
+  // All six shown; natural order (old-pending before the-active), no float.
+  assert.equal(lines.filter(l => /old-pending|the-active|recent-/.test(l)).length, 6);
+  assert.ok(lines.findIndex(l => l.includes("old-pending")) < lines.findIndex(l => l.includes("the-active")));
 });
 
 test("todos panel: no footer under cap", () => {
@@ -535,7 +541,7 @@ test("workspace panel: additions and deletions shows +N -M", () => {
   assert.ok(text.includes("-3"), `missing -3, got: ${text}`);
 });
 
-test("workspace panel: 16 files capped to 15", () => {
+test("workspace panel: shows all files (no 15 cap)", () => {
   const files: WorkspaceFile[] = Array.from({ length: 16 }, (_, i) => ({
     path: `src/file${i}.ts`,
     added: 1,
@@ -544,7 +550,7 @@ test("workspace panel: 16 files capped to 15", () => {
   const ctx = makeCtx({ branch: "main", workspaceFiles: files });
   const lines = renderWorkspacePanel(ctx, 50);
   const fileLines = lines.filter(l => strip(l).includes("src/file"));
-  assert.equal(fileLines.length, 15, `expected 15 file lines, got ${fileLines.length}`);
+  assert.equal(fileLines.length, 16, `expected 16 file lines, got ${fileLines.length}`);
 });
 
 test("workspace panel: header contains branch name", () => {

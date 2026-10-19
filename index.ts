@@ -7,6 +7,7 @@ import { SidebarCompositor } from "./compositor.ts";
 import { getMcpServers, invalidateMcpCache, type LiveMcpTool } from "./mcp.ts";
 import { loadCavemanConfig, resolveCavemanLevel, cavemanInterval, type CavemanConfig } from "./caveman.ts";
 import { setPiTheme } from "./colors.ts";
+import { createSubagentMonitor, type SubagentFleet } from "./subagents.ts";
 
 const TODO_TOOL_PATTERN = /todo/i;
 const WRITE_TOOLS = new Set(["write", "edit", "bash", "computer"]);
@@ -17,6 +18,7 @@ let sidebarWidth = initialSettings.width;
 let todosMax = initialSettings.todosMax;
 let scrollSpeed = initialSettings.scrollSpeed;
 let sessionManager: any = null;
+let subagentFleet: SubagentFleet | null = null;
 let sessionTitle: string | null = null;
 let todos: TodoItem[] = [];
 let currentModel: string | null = null;
@@ -132,6 +134,7 @@ function buildSidebarContext(cwd: string | undefined): SidebarContext {
   const ws = getWorkspaceData(cwd);
   return {
     sessionTitle,
+    subagents: subagentFleet,
     sessionId: sessionManager?.getSessionId?.() ?? null,
     todos,
     todosMax,
@@ -225,6 +228,7 @@ export default function piSidebar(pi: ExtensionAPI) {
   let requestRender: (() => void) | null = null;
   let tuiRef: any = null;
   let compositorRef: SidebarCompositor | null = null;
+  const subagentMonitor = createSubagentMonitor(pi, (fleet) => { subagentFleet = fleet; requestRender?.(); });
 
   // Live MCP status source: built-in pi registers mcp__<server>__<tool> for
   // every tool of a connected server, so the tool registry is the live truth.
@@ -284,6 +288,7 @@ export default function piSidebar(pi: ExtensionAPI) {
   };
 
   pi.on("session_start", async (_event, ctx) => {
+    subagentMonitor.start();
     sessionManager = ctx.sessionManager;
     sessionTitle = ctx.sessionManager.getSessionName() ?? inferSessionTitle(ctx.sessionManager) ?? null;
     // Seed todos from session history so the panel is correct on resume/branch
@@ -399,6 +404,8 @@ export default function piSidebar(pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
+    subagentMonitor.stop();
+    subagentFleet = null;
     if (sessionTimerHandle) { clearInterval(sessionTimerHandle); sessionTimerHandle = null; }
     if (unsubscribeMcpStatus) { unsubscribeMcpStatus(); unsubscribeMcpStatus = null; }
     stopCavemanAnim();

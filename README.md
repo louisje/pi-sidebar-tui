@@ -25,6 +25,12 @@ Displays a real-time sidebar panel inside the pi terminal UI showing session met
 - Tool count per server (direct/total)
 - Token estimate per server
 
+### Subagents Panel (optional pi-cciotti integration)
+- Displays active subagents from pi-cciotti's public in-process RPC fleetStatus v1 snapshot
+- Agent, task goal, model, effort, elapsed time, and total tokens when available
+- Automatic detection, low-frequency refresh, independent scrolling, and no additional package dependency
+- Hidden when pi-cciotti is absent or no child is active; read-only (use /subagents-fleet for inspection)
+
 ### Todos Panel
 - Parses todo items from tool calls (`todo` tool)
 - Status glyphs: `○` pending, `◐` in progress, `✓` completed

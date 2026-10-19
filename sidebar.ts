@@ -3,6 +3,7 @@ import type { SidebarContext } from "./types.ts";
 import { dim } from "./colors.ts";
 import { renderSessionPanel } from "./panels/session.ts";
 import { renderMcpPanel } from "./panels/mcp.ts";
+import { renderSubagentsPanel } from "./panels/subagents.ts";
 import { renderTodosPanel } from "./panels/todos.ts";
 import { renderWorkspacePanel } from "./panels/workspace.ts";
 
@@ -86,6 +87,7 @@ function panelSpecs(ctx: SidebarContext): PanelSpec[] {
   return [
     { id: "session", render: renderSessionPanel, scrollable: false },
     { id: "mcp", render: renderMcpPanel, scrollable: true },
+    { id: "subagents", render: renderSubagentsPanel, scrollable: true },
     { id: "todos", render: renderTodosPanel, scrollable: true, viewport: todosViewport(ctx) },
     { id: "workspace", render: renderWorkspacePanel, scrollable: true },
   ];

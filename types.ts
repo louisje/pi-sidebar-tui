@@ -1,3 +1,4 @@
+import type { SubagentFleet } from "./subagents.ts";
 export type TodoStatus = "pending" | "in_progress" | "completed";
 
 export interface TodoItem {
@@ -33,6 +34,7 @@ export type CtxLeft =
   | { kind: "left"; turns: number };
 
 export interface SidebarContext {
+  subagents?: SubagentFleet | null;
   sessionTitle: string | null;
   sessionId: string | null;
   todos: TodoItem[];
